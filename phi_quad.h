@@ -13,7 +13,7 @@ double Average(const double *array, const unsigned long length);
 // calculates the variance (square of standard deviation)
 double Variance(const double *array, const unsigned long length);
 
-// the variance of the bin means, normalized by bin size
+// the stat. error of the mean
 double BinnedStatisticalError(const double *array,
                               const unsigned long int length,
                               const unsigned long int bin_size);
@@ -24,9 +24,6 @@ void SweepSequential(void);
 // Do a Markov chain step on the given lattice point.
 void Propagate(unsigned long int lattice_site);
 
-// solve the two-site system numerically
-void SolveNumerically(void);
-
 // Measure observables and store to the given place in observable array.
 void Observe(unsigned long int observation_index);
 
@@ -36,3 +33,7 @@ void SeedRNG(unsigned int seed);
 // write double array to disk as matlab-compatible file
 void PersistArray(double *array, long long unsigned int element_count,
                   const char *file_name);
+
+// Calculate how far to jump in an array-represented n-dimensional lattice when
+// calculating nearest neighbors.
+inline void PopulateStepSizes(unsigned long int **step_sizes);
