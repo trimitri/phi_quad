@@ -27,34 +27,41 @@ MODE =
 MODE_GCC = -std=c11
 MODE_ICC = -std=gnu11
 
-all: clang
+all: clang series-debug series-release
 clang: clang-debug clang-release
 gcc: gcc-debug gcc-release
 icc: icc-release
 
-CLANG_COMMON = $(CC) $(PARAMS) $(MODE) $(WARN) $(LIBS) 
+CLANG_COMMON = $(CC) $(PARAMS) $(MODE) $(WARN) $(LIBS)
+
+# compile the series sample implementation of Dr. Hasenbusch
+series-release: series.c
+	$(CLANG_COMMON) $(RELEASE) -o series.elf series.c
+
+series-debug: series.c
+	$(CLANG_COMMON) $(DEBUG) -o series_debug.elf series.c
 
 clang-release: $(SOURCES)
-	$(CLANG_COMMON) $(RELEASE) -o clang_release $(SOURCES)
+	$(CLANG_COMMON) $(RELEASE) -o clang_release.elf $(SOURCES)
 
 clang-profile: $(SOURCES)
-	$(CLANG_COMMON) $(PROFILE) -o clang_profile $(SOURCES)
+	$(CLANG_COMMON) $(PROFILE) -o clang_profile.elf $(SOURCES)
 
 clang-debug: $(SOURCES)
-	$(CLANG_COMMON) $(DEBUG) -o clang_debug $(SOURCES)
+	$(CLANG_COMMON) $(DEBUG) -o clang_debug.elf $(SOURCES)
 
 
 GCC_COMMON = $(GCC) $(PARAMS) $(MODE_GCC) $(WARN_GCC)
 
 gcc-release: $(SOURCES)
-	$(GCC_COMMON) $(RELEASE_GCC) -o gcc_release $(SOURCES) $(LIBS)
+	$(GCC_COMMON) $(RELEASE_GCC) -o gcc_release.elf $(SOURCES) $(LIBS)
 
 gcc-profile: $(SOURCES)
-	$(GCC_COMMON) $(PROFILE_GCC) -o gcc_profile $(SOURCES) $(LIBS)
+	$(GCC_COMMON) $(PROFILE_GCC) -o gcc_profile.elf $(SOURCES) $(LIBS)
 
 gcc-debug: $(SOURCES)
-	$(GCC_COMMON) $(DEBUG_GCC) -o gcc_debug $(SOURCES) $(LIBS)
+	$(GCC_COMMON) $(DEBUG_GCC) -o gcc_debug.elf $(SOURCES) $(LIBS)
 
 
 icc-release: $(SOURCES)
-	$(ICC) $(PARAMS) $(MODE_ICC) $(WARN_GCC) $(RELEASE_GCC) -o icc_release $(SOURCES) $(LIBS_ICC) 
+	$(ICC) $(PARAMS) $(MODE_ICC) $(WARN_GCC) $(RELEASE_GCC) -o icc_release.elf $(SOURCES) $(LIBS_ICC) 

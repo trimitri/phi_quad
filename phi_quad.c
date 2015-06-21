@@ -107,6 +107,7 @@ inline void Propagate(ulong site) {
 
 inline void Observe(ulong index) {
   // TODO
+  printf("observing index %lu\n", index);
 }
 
 // As we just plain sum the elements (no Kahan summation or anything), care
