@@ -36,4 +36,8 @@ void PersistArray(double *array, long long unsigned int element_count,
 
 // Calculate how far to jump in an array-represented n-dimensional lattice when
 // calculating nearest neighbors.
-inline void PopulateStepSizes(unsigned long int **step_sizes);
+void PopulateStepSizes(unsigned long int **step_sizes);
+
+// Sum sites directly neigboring the given site, using periodic boundary
+// conditions.
+double SumNeighbors(unsigned long int site);

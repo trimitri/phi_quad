@@ -17,11 +17,13 @@ typedef unsigned short int ushort;
 
 static const ulong kSeed = 123456;         // it's seed value
 static const uint kDim[3] = {16, 16, 16};  // lattice dimensions
-static const ullong kSweeps = (ullong)1e6;
+static const ullong kSweeps = (ullong)1e4;
 static const ulong kThermalisationSweeps = 1000;
 // scale the normal distribution used for Metropolis proposals. The value is
 // chosen (by hand) so that acceptance rate is about 0.5
 static const double kProposalScale = 1.25;
+static const double kLambda = 1.;
+static const double k2Kappa = 2.;
 
 static dsfmt_t rng;                   // random number generator
 static double *lat;                   // main system
@@ -78,31 +80,21 @@ inline void SweepSequential() {
 inline void Propagate(ulong site) {
   double u = lat[site];
 
-  // fetch neighboring site values (like geom_pbc, but without if-conditions)
-  double neigh[6];
-  neigh[0] = lat[site - site % steps[0] + (site + steps[0] - 1) % steps[0]];
-  neigh[1] = lat[site - site % steps[0] + (site + 1) % steps[0]];
-  neigh[2] =
-      lat[site - site % steps[1] + (site + steps[1] - steps[0]) % steps[1]];
-  neigh[3] = lat[site - site % steps[1] + (site + steps[0]) % steps[1]];
-  neigh[4] =
-      lat[site - site % steps[2] + (site + steps[2] - steps[1]) % steps[2]];
-  neigh[5] = lat[site - site % steps[2] + (site + steps[1]) % steps[2]];
-
   // make a proposal on how to alter lattice site state
   double delta = GaussRandomNumber() * kProposalScale;  // change in phi
   double n = u + delta;                                 // new value
 
   // decide if we want to accept it
 
-  // the gauss term simplifies a lot:
-  double gauss_diff = delta * (t - n - u);  // if we had gauss model
+  // gauss term
+  double gauss_diff = delta * (k2Kappa * SumNeighbors(site) - n - u);
 
-  // the quartic term not so much:
+  // quartic term (not dependend on neigbors)
   double tmp = u * u - 1;
   double quartic_diff = tmp * tmp;
   tmp = n * n - 1;
   quartic_diff -= tmp * tmp;
+  quartic_diff *= kLambda;
 
   double energy_diff = gauss_diff + quartic_diff;
 
@@ -202,4 +194,15 @@ inline void PopulateStepSizes(ulong **step_sizes) {
     tmp_step *= kDim[i];
     *step_sizes[i] = tmp_step;
   }
+}
+
+inline double SumNeighbors(ulong site) {
+  double sum = 0;
+  sum += lat[site - site % steps[0] + (site + steps[0] - 1) % steps[0]];
+  sum += lat[site - site % steps[0] + (site + 1) % steps[0]];
+  sum += lat[site - site % steps[1] + (site + steps[1] - steps[0]) % steps[1]];
+  sum += lat[site - site % steps[1] + (site + steps[0]) % steps[1]];
+  sum += lat[site - site % steps[2] + (site + steps[2] - steps[1]) % steps[2]];
+  sum += lat[site - site % steps[2] + (site + steps[1]) % steps[2]];
+  return sum;
 }
