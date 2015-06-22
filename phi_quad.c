@@ -17,7 +17,8 @@ typedef unsigned short int ushort;
 
 static const ulong kSeed = 123456;         // it's seed value
 static const uint kDim[3] = {16, 16, 16};  // lattice dimensions
-static const ullong kSweeps = (ullong)1e4;
+static const ulong steps[3] = {16, 256, 4096};
+static const ullong kSweeps = (ullong)3e3;
 static const ulong kThermalisationSweeps = 1000;
 // scale the normal distribution used for Metropolis proposals. The value is
 // chosen (by hand) so that acceptance rate is about 0.5
@@ -30,12 +31,9 @@ static double *lat;                   // main system
 static double *A_1, *A_2;             // observables
 static ulong accepted_proposals = 0;  // # of acc. metropolis proposals
 static ulong volume;                  // number of lattice sites
-static ulong *steps;                  // {L_1, L_1*L_2, L_1*L_2*L_3*...}
 
 int main() {
   SeedRNG(kSeed);
-  steps = (ulong *)malloc(LENGTH(kDim) * sizeof(ulong));
-  PopulateStepSizes(&steps);
 
   // calculate lattice site count
   volume = 1;
@@ -60,9 +58,10 @@ int main() {
   }
 
   printf("acceptance rate after %.1e sweeps: %f\n", (double)kSweeps,
-         (double)accepted_proposals / 2 / kSweeps);
+         (double)accepted_proposals / volume / kSweeps);
+  printf("measured values: %g %g\n", Average(A_1, kSweeps),
+         Average(A_2, kSweeps));
 
-  free(steps);
   free(lat);
   free(A_1);
   free(A_2);
@@ -105,9 +104,14 @@ inline void Propagate(ulong site) {
   }
 }
 
-inline void Observe(ulong index) {
-  // TODO
-  printf("observing index %lu\n", index);
+void Observe(ullong observation_index) {
+  double a1 = 0, a2 = 0;
+  for (ulong i = 0; i < volume; i++) {
+    a1 += SumNeighbors(i) * lat[i];
+    a2 += lat[i];
+  }
+  A_1[observation_index] = a1 / volume;
+  A_2[observation_index] = a2 * a2 / volume;
 }
 
 // As we just plain sum the elements (no Kahan summation or anything), care
@@ -187,14 +191,6 @@ void PersistArray(double *array, long long unsigned int element_count,
   FILE *file = fopen(file_name, "wb");
   fwrite(array, sizeof(double), sizeof(double) * element_count, file);
   fclose(file);
-}
-
-inline void PopulateStepSizes(ulong **step_sizes) {
-  ulong tmp_step = 1;
-  for (uint i = 0; i < LENGTH(kDim); i++) {
-    tmp_step *= kDim[i];
-    *step_sizes[i] = tmp_step;
-  }
 }
 
 inline double SumNeighbors(ulong site) {

@@ -34,10 +34,6 @@ void SeedRNG(unsigned int seed);
 void PersistArray(double *array, long long unsigned int element_count,
                   const char *file_name);
 
-// Calculate how far to jump in an array-represented n-dimensional lattice when
-// calculating nearest neighbors.
-void PopulateStepSizes(unsigned long int **step_sizes);
-
 // Sum sites directly neigboring the given site, using periodic boundary
 // conditions.
 double SumNeighbors(unsigned long int site);
