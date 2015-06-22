@@ -7,6 +7,8 @@
 #include "dSFMT/dSFMT.h"  // random numbers
 #include "phi_quad.h"     // my header
 
+#define GUGU_STORE_NEIGHBORS
+
 // length of a stack array; won't work on heap arrays!
 #define LENGTH(stack_array) (sizeof(stack_array) / sizeof(stack_array[0]))
 
@@ -17,8 +19,8 @@ typedef unsigned short int ushort;
 
 static const ulong kSeed = 123456;         // it's seed value
 static const uint kDim[3] = {16, 16, 16};  // lattice dimensions
-static const ulong steps[3] = {16, 256, 4096};
-static const ullong kSweeps = (ullong)3e3;
+static const ulong steps[3] = {10, 256, 4096};
+static const ullong kSweeps = (ullong)1e4;
 static const ulong kThermalisationSweeps = 1000;
 // scale the normal distribution used for Metropolis proposals. The value is
 // chosen (by hand) so that acceptance rate is about 0.5
@@ -31,6 +33,10 @@ static double *lat;                   // main system
 static double *A_1, *A_2;             // observables
 static ulong accepted_proposals = 0;  // # of acc. metropolis proposals
 static ulong volume;                  // number of lattice sites
+#ifdef GUGU_STORE_NEIGHBORS
+static ulong *neigh_idx;
+static const uint neigh_count = 2 * LENGTH(kDim);
+#endif
 
 int main() {
   SeedRNG(kSeed);
@@ -45,6 +51,17 @@ int main() {
   lat = (double *)calloc(volume, sizeof(double));
   A_1 = (double *)calloc(kSweeps, sizeof(double));
   A_2 = (double *)calloc(kSweeps, sizeof(double));
+#ifdef GUGU_STORE_NEIGHBORS
+  neigh_idx = (ulong*)malloc(neigh_count * volume);
+  for (ulong site = 0; site < volume; site++) {
+    neigh_idx[neigh_count * site] =  site - site % steps[0] + (site + steps[0] - 1) % steps[0];
+    neigh_idx[neigh_count * site + 1] =  site - site % steps[0] + (site + 1) % steps[0];
+    neigh_idx[neigh_count * site + 2] =  site - site % steps[1] + (site + steps[1] - steps[0]) % steps[1];
+    neigh_idx[neigh_count * site + 3] = site - site % steps[1] + (site + steps[0]) % steps[1];
+    neigh_idx[neigh_count * site + 4] = site - site % steps[2] + (site + steps[2] - steps[1]) % steps[2];
+    neigh_idx[neigh_count * site + 5] = site - site % steps[2] + (site + steps[1]) % steps[2];
+  }
+#endif
 
   // thermalisation (1000 is far more than necessary, 100 would be enough)
   for (uint i = 0; i < kThermalisationSweeps; i++) {
@@ -65,6 +82,9 @@ int main() {
   free(lat);
   free(A_1);
   free(A_2);
+#ifdef GUGU_STORE_NEIGHBORS
+  free(neigh_idx);
+#endif
   return 0;
 }
 
@@ -195,11 +215,31 @@ void PersistArray(double *array, long long unsigned int element_count,
 
 inline double SumNeighbors(ulong site) {
   double sum = 0;
+#ifdef GUGU_STORE_NEIGHBORS
+  for (uint i = 0; i<neigh_count; i++) {
+    sum += lat[neigh_idx[site * neigh_count + i]];
+  }
+#else
   sum += lat[site - site % steps[0] + (site + steps[0] - 1) % steps[0]];
   sum += lat[site - site % steps[0] + (site + 1) % steps[0]];
   sum += lat[site - site % steps[1] + (site + steps[1] - steps[0]) % steps[1]];
   sum += lat[site - site % steps[1] + (site + steps[0]) % steps[1]];
   sum += lat[site - site % steps[2] + (site + steps[2] - steps[1]) % steps[2]];
   sum += lat[site - site % steps[2] + (site + steps[1]) % steps[2]];
+#endif
+
+  // debug neighbor calculation
+  /* 
+  if(site%13 == 0) {
+    printf("site: %lu\n", site);
+    printf("neigbors: %3lu %3lu %3lu %3lu %3lu %3lu\n",
+        site - site % steps[0] + (site + steps[0] - 1) % steps[0],
+        site - site % steps[0] + (site + 1) % steps[0],
+        site - site % steps[1] + (site + steps[1] - steps[0]) % steps[1],
+        site - site % steps[1] + (site + steps[0]) % steps[1],
+        site - site % steps[2] + (site + steps[2] - steps[1]) % steps[2],
+        site - site % steps[2] + (site + steps[1]) % steps[2]);
+  }
+  */
   return sum;
 }

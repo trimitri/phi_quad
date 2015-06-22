@@ -14,18 +14,18 @@ SOURCES = phi_quad.c dSFMT/dSFMT.c
 
 # flags
 DEBUG = -g -fsanitize=address,undefined,bounds,null -fno-omit-frame-pointer
-DEBUG_GCC = -g -fsanitize=address -fno-omit-frame-pointer
+DEBUG_GCC = -g -fno-omit-frame-pointer
 LIBS = -lm
 LIBS_ICC = -lm
-RELEASE = -Ofast -march="native" -Rpass-missed -Rpass-analysis -ffast-math
+RELEASE = -Ofast -march="native" -Rpass-missed -Rpass-analysis
 RELEASE_GCC = -Ofast -march="native" #-fopt-info-missed
 PROFILE =  -Ofast -march="native" -fprofile-instr-generate
 PROFILE_GCC =  -O1 -march="native" -pg 
 WARN = -Weverything -Wno-sign-conversion -Wno-pedantic -Wno-padded
 WARN_GCC = -Wall -Wextra
-MODE = 
+MODE = -std=c11
 MODE_GCC = -std=c11
-MODE_ICC = -std=gnu11
+MODE_ICC = -std=c11
 
 all: clang series-debug series-release
 clang: clang-debug clang-release
