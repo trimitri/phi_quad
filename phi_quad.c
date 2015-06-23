@@ -7,6 +7,7 @@
 #include "dSFMT/dSFMT.h"  // random numbers
 #include "phi_quad.h"     // my header
 
+// pre-compute neigbors instead of "on the fly"
 #define GUGU_STORE_NEIGHBORS
 
 // length of a stack array; won't work on heap arrays!
@@ -19,13 +20,13 @@ typedef unsigned short int ushort;
 
 static const ulong kSeed = 123456;         // it's seed value
 static const uint kDim[3] = {16, 16, 16};  // lattice dimensions
-static const ulong steps[3] = {10, 256, 4096};
+static const ulong steps[3] = {16, 256, 4096};
 static const ullong kSweeps = (ullong)1e4;
 static const ulong kThermalisationSweeps = 1000;
 // scale the normal distribution used for Metropolis proposals. The value is
 // chosen (by hand) so that acceptance rate is about 0.5
-static const double kProposalScale = 1.25;
-static const double kLambda = 1.;
+static const double kProposalScale = 0.38;
+static const double kLambda = 1.1;
 static const double k2Kappa = 2.;
 
 static dsfmt_t rng;                   // random number generator
@@ -52,18 +53,28 @@ int main() {
   A_1 = (double *)calloc(kSweeps, sizeof(double));
   A_2 = (double *)calloc(kSweeps, sizeof(double));
 #ifdef GUGU_STORE_NEIGHBORS
-  neigh_idx = (ulong*)malloc(neigh_count * volume);
+  neigh_idx = (ulong *)malloc(neigh_count * volume * sizeof(ulong));
   for (ulong site = 0; site < volume; site++) {
-    neigh_idx[neigh_count * site] =  site - site % steps[0] + (site + steps[0] - 1) % steps[0];
-    neigh_idx[neigh_count * site + 1] =  site - site % steps[0] + (site + 1) % steps[0];
-    neigh_idx[neigh_count * site + 2] =  site - site % steps[1] + (site + steps[1] - steps[0]) % steps[1];
-    neigh_idx[neigh_count * site + 3] = site - site % steps[1] + (site + steps[0]) % steps[1];
-    neigh_idx[neigh_count * site + 4] = site - site % steps[2] + (site + steps[2] - steps[1]) % steps[2];
-    neigh_idx[neigh_count * site + 5] = site - site % steps[2] + (site + steps[1]) % steps[2];
+    
+    // neigbors in positive direction
+    neigh_idx[neigh_count * site] =
+        site - site % steps[0] + (site + 1) % steps[0];
+    neigh_idx[neigh_count * site + 1] =
+        site - site % steps[1] + (site + steps[0]) % steps[1];
+    neigh_idx[neigh_count * site + 2] =
+        site - site % steps[2] + (site + steps[1]) % steps[2];
+
+    // neighbors in negative direction
+    neigh_idx[neigh_count * site + 3] =
+        site - site % steps[0] + (site + steps[0] - 1) % steps[0];
+    neigh_idx[neigh_count * site + 4] =
+        site - site % steps[1] + (site + steps[1] - steps[0]) % steps[1];
+    neigh_idx[neigh_count * site + 5] =
+        site - site % steps[2] + (site + steps[2] - steps[1]) % steps[2];
   }
 #endif
 
-  // thermalisation (1000 is far more than necessary, 100 would be enough)
+  // thermalisation
   for (uint i = 0; i < kThermalisationSweeps; i++) {
     SweepSequential();
   }
@@ -127,7 +138,7 @@ inline void Propagate(ulong site) {
 void Observe(ullong observation_index) {
   double a1 = 0, a2 = 0;
   for (ulong i = 0; i < volume; i++) {
-    a1 += SumNeighbors(i) * lat[i];
+    a1 += SumPositiveNeighbors(i) * lat[i];
     a2 += lat[i];
   }
   A_1[observation_index] = a1 / volume;
@@ -216,7 +227,7 @@ void PersistArray(double *array, long long unsigned int element_count,
 inline double SumNeighbors(ulong site) {
   double sum = 0;
 #ifdef GUGU_STORE_NEIGHBORS
-  for (uint i = 0; i<neigh_count; i++) {
+  for (uint i = 0; i < neigh_count; i++) {
     sum += lat[neigh_idx[site * neigh_count + i]];
   }
 #else
@@ -229,7 +240,7 @@ inline double SumNeighbors(ulong site) {
 #endif
 
   // debug neighbor calculation
-  /* 
+  /*
   if(site%13 == 0) {
     printf("site: %lu\n", site);
     printf("neigbors: %3lu %3lu %3lu %3lu %3lu %3lu\n",
@@ -241,5 +252,19 @@ inline double SumNeighbors(ulong site) {
         site - site % steps[2] + (site + steps[1]) % steps[2]);
   }
   */
+  return sum;
+}
+
+inline double SumPositiveNeighbors(ulong site) {
+  double sum = 0;
+#ifdef GUGU_STORE_NEIGHBORS
+  for (uint i = 0; i < neigh_count/2; i++) {
+    sum += lat[neigh_idx[site * neigh_count + i]];
+  }
+#else
+  sum += lat[site - site % steps[0] + (site + 1) % steps[0]];
+  sum += lat[site - site % steps[1] + (site + steps[0]) % steps[1]];
+  sum += lat[site - site % steps[2] + (site + steps[1]) % steps[2]];
+#endif
   return sum;
 }

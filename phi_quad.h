@@ -37,3 +37,8 @@ void PersistArray(double *array, long long unsigned int element_count,
 // Sum sites directly neigboring the given site, using periodic boundary
 // conditions.
 double SumNeighbors(unsigned long int site);
+
+// Sum sites directly neigboring the given site, only taking the neighbors in
+// positive direction of each dimension into account. This is to avoid
+// double-counting of neigbour pairs.
+double SumPositiveNeighbors(unsigned long int site);
