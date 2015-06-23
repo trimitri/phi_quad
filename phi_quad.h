@@ -18,6 +18,10 @@ double BinnedStatisticalError(const double *array,
                               const unsigned long int length,
                               const unsigned long int bin_size);
 
+// Do some basic analysis, printing average, stat. error and tau_int estimate
+void BinningAnalysis(const double *data, const unsigned long int length,
+                     const unsigned long int bin_size);
+
 // Sweep the lattice typewriter style.
 void SweepSequential(void);
 
