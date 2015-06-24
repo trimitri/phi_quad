@@ -20,14 +20,17 @@ typedef unsigned short int ushort;
 
 static const ulong kSeed = 123456;         // it's seed value
 static const uint kDim[3] = {16, 16, 16};  // lattice dimensions
+// How far to we jump in the array when "searching" for neigbours?
+// This may be calculated at runtime, however, this way it's a compile time
+// constant.
 static const ulong steps[3] = {16, 256, 4096};
-static const ullong kSweeps = (ullong)1e5;
-static const ulong kThermalisationSweeps = 10000;
+static const ullong kSweeps = (ullong)1e6;
+static const ulong kThermalisationSweeps = 100000;
 // scale the normal distribution used for Metropolis proposals. The value is
 // chosen (by hand) so that acceptance rate is about 0.5
-static const double kProposalScale = 0.38;
+static const double kProposalScale = 1.5;
 static const double kLambda = 1.1;
-static const double k2Kappa = 2.;
+static const double k2Kappa = .1;
 
 static dsfmt_t rng;                   // random number generator
 static double *lat;                   // main system
@@ -88,9 +91,11 @@ int main() {
   printf("acceptance rate after %.1e sweeps: %f\n", (double)kSweeps,
          (double)accepted_proposals / volume / kSweeps);
 
-  const uint binnings[] = {10, 100, 1000, 2000};
+  const uint binnings[] = {10, 100, 1000, 5000, 10000};
   for (uint i = 0; i < LENGTH(binnings); i++) {
+    printf("A_1:");
     BinningAnalysis(A_1, kSweeps, binnings[i]);
+    printf("A_2:");
     BinningAnalysis(A_2, kSweeps, binnings[i]);
   }
 
@@ -278,8 +283,8 @@ void BinningAnalysis(const double *data, const ulong length,
                      const ulong bin_size) {
   printf("analysing at bin size %lu...\n", bin_size);
   double binned_error = BinnedStatisticalError(data, length, bin_size);
-  double raw_error = Variance(data, length) / length;
+  double raw_error = sqrt(Variance(data, length) / length);
   double tau_int = .5 * length * pow(binned_error / raw_error, 2);
-  printf("value, error and tau_int est. : %7g %7g %7g\n", Average(data, length),
+  printf("value, error and tau_int est. : %7f %7f %0f\n", Average(data, length),
          binned_error, tau_int);
 }
