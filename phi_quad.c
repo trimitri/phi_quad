@@ -55,6 +55,8 @@ int main() {
   lat = (double *)calloc(volume, sizeof(double));
   A_1 = (double *)calloc(kSweeps, sizeof(double));
   A_2 = (double *)calloc(kSweeps, sizeof(double));
+
+// pre-compute neighbors
 #ifdef GUGU_STORE_NEIGHBORS
   neigh_idx = (ulong *)malloc(neigh_count * volume * sizeof(ulong));
   for (ulong site = 0; site < volume; site++) {
@@ -109,8 +111,6 @@ int main() {
   return 0;
 }
 
-// As there are only two lattice sites, we hand-unroll the loop that one would
-// expect here.
 inline void SweepSequential() {
   for (ulong i = 0; i < volume; i++) {
     Propagate(i);
@@ -155,14 +155,35 @@ void Observe(ullong observation_index) {
   A_2[observation_index] = a2 * a2 / volume;
 }
 
-// As we just plain sum the elements (no Kahan summation or anything), care
-// needs to be taken on large systems.
-inline double Average(const double *array, const ulong length) {
-  double sum = 0.;
-  for (ulong i = 0; i < length; i++) {
-    sum += array[i];
+inline double SumNeighbors(ulong site) {
+  double sum = 0;
+#ifdef GUGU_STORE_NEIGHBORS
+  for (uint i = 0; i < neigh_count; i++) {
+    sum += lat[neigh_idx[site * neigh_count + i]];
   }
-  return sum / length;
+#else
+  sum += lat[site - site % steps[0] + (site + steps[0] - 1) % steps[0]];
+  sum += lat[site - site % steps[0] + (site + 1) % steps[0]];
+  sum += lat[site - site % steps[1] + (site + steps[1] - steps[0]) % steps[1]];
+  sum += lat[site - site % steps[1] + (site + steps[0]) % steps[1]];
+  sum += lat[site - site % steps[2] + (site + steps[2] - steps[1]) % steps[2]];
+  sum += lat[site - site % steps[2] + (site + steps[1]) % steps[2]];
+#endif
+  return sum;
+}
+
+inline double SumPositiveNeighbors(ulong site) {
+  double sum = 0;
+#ifdef GUGU_STORE_NEIGHBORS
+  for (uint i = 0; i < neigh_count / 2; i++) {
+    sum += lat[neigh_idx[site * neigh_count + i]];
+  }
+#else
+  sum += lat[site - site % steps[0] + (site + 1) % steps[0]];
+  sum += lat[site - site % steps[1] + (site + steps[0]) % steps[1]];
+  sum += lat[site - site % steps[2] + (site + steps[1]) % steps[2]];
+#endif
+  return sum;
 }
 
 double BinnedStatisticalError(const double *array, const ulong length,
@@ -183,6 +204,26 @@ double BinnedStatisticalError(const double *array, const ulong length,
   return sqrt(err);
 }
 
+void BinningAnalysis(const double *data, const ulong length,
+                     const ulong bin_size) {
+  printf("analysing at bin size %lu...\n", bin_size);
+  double binned_error = BinnedStatisticalError(data, length, bin_size);
+  double raw_error = sqrt(Variance(data, length) / length);
+  double tau_int = .5 * length * pow(binned_error / raw_error, 2);
+  printf("value, error and tau_int est. : %7f %7f %0f\n", Average(data, length),
+         binned_error, tau_int);
+}
+
+// As we just plain sum the elements (no Kahan summation or anything), care
+// needs to be taken on large systems.
+inline double Average(const double *array, const ulong length) {
+  double sum = 0.;
+  for (ulong i = 0; i < length; i++) {
+    sum += array[i];
+  }
+  return sum / length;
+}
+
 double Variance(const double *array, const ulong length) {
   double average = Average(array, length);
   double sum_of_squares = 0.;
@@ -194,6 +235,9 @@ double Variance(const double *array, const ulong length) {
 }
 
 void SeedRNG(uint seed) { dsfmt_init_gen_rand(&rng, seed); }
+
+// uses dSFMT from included library
+inline double RandDouble() { return dsfmt_genrand_close_open(&rng); }
 
 // we use the Marsaglia polar method, taken from
 // https://en.wikipedia.org/wiki/Marsaglia_polar_method
@@ -222,9 +266,6 @@ double GaussRandomNumber() {
   return u * s;
 }
 
-// uses dSFMT from included library
-inline double RandDouble() { return dsfmt_genrand_close_open(&rng); }
-
 // Does no checks at all.
 void PersistArray(double *array, long long unsigned int element_count,
                   const char *file_name) {
@@ -232,59 +273,4 @@ void PersistArray(double *array, long long unsigned int element_count,
   FILE *file = fopen(file_name, "wb");
   fwrite(array, sizeof(double), sizeof(double) * element_count, file);
   fclose(file);
-}
-
-inline double SumNeighbors(ulong site) {
-  double sum = 0;
-#ifdef GUGU_STORE_NEIGHBORS
-  for (uint i = 0; i < neigh_count; i++) {
-    sum += lat[neigh_idx[site * neigh_count + i]];
-  }
-#else
-  sum += lat[site - site % steps[0] + (site + steps[0] - 1) % steps[0]];
-  sum += lat[site - site % steps[0] + (site + 1) % steps[0]];
-  sum += lat[site - site % steps[1] + (site + steps[1] - steps[0]) % steps[1]];
-  sum += lat[site - site % steps[1] + (site + steps[0]) % steps[1]];
-  sum += lat[site - site % steps[2] + (site + steps[2] - steps[1]) % steps[2]];
-  sum += lat[site - site % steps[2] + (site + steps[1]) % steps[2]];
-#endif
-
-  // debug neighbor calculation
-  /*
-  if(site%13 == 0) {
-    printf("site: %lu\n", site);
-    printf("neigbors: %3lu %3lu %3lu %3lu %3lu %3lu\n",
-        site - site % steps[0] + (site + steps[0] - 1) % steps[0],
-        site - site % steps[0] + (site + 1) % steps[0],
-        site - site % steps[1] + (site + steps[1] - steps[0]) % steps[1],
-        site - site % steps[1] + (site + steps[0]) % steps[1],
-        site - site % steps[2] + (site + steps[2] - steps[1]) % steps[2],
-        site - site % steps[2] + (site + steps[1]) % steps[2]);
-  }
-  */
-  return sum;
-}
-
-inline double SumPositiveNeighbors(ulong site) {
-  double sum = 0;
-#ifdef GUGU_STORE_NEIGHBORS
-  for (uint i = 0; i < neigh_count / 2; i++) {
-    sum += lat[neigh_idx[site * neigh_count + i]];
-  }
-#else
-  sum += lat[site - site % steps[0] + (site + 1) % steps[0]];
-  sum += lat[site - site % steps[1] + (site + steps[0]) % steps[1]];
-  sum += lat[site - site % steps[2] + (site + steps[1]) % steps[2]];
-#endif
-  return sum;
-}
-
-void BinningAnalysis(const double *data, const ulong length,
-                     const ulong bin_size) {
-  printf("analysing at bin size %lu...\n", bin_size);
-  double binned_error = BinnedStatisticalError(data, length, bin_size);
-  double raw_error = sqrt(Variance(data, length) / length);
-  double tau_int = .5 * length * pow(binned_error / raw_error, 2);
-  printf("value, error and tau_int est. : %7f %7f %0f\n", Average(data, length),
-         binned_error, tau_int);
 }
